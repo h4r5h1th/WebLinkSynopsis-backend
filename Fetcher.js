@@ -5,12 +5,12 @@ const cors = require('cors');
 const bodyParser = require('body-parser');
 const app = express();
 const CreateUser = require('./Model');
-
-require('dotenv').config();
+const { ObjectId } = require('mongodb')
 
 //middleware
 app.use(cors())
 app.use(bodyParser.json());
+require('dotenv').config();
 
 //Connect to Server
 async function mongoConnect(){
@@ -25,7 +25,6 @@ mongoConnect().catch(err => console.log(err));
 //SignUp api
 
 app.post('/api/signup', async (req , res) =>{
-  console.log(req.body);
   if(await CreateUser.findOne({email: req.body.email})){
     res.send("Email exists");
   }
@@ -50,7 +49,6 @@ app.post('/api/signup', async (req , res) =>{
 
 //signIn api
 app.post('/api/login', async (req , res) =>{
-  console.log(req.body);
   const User_Check = await CreateUser.findOne({email: req.body.email});
   if(User_Check){
     if(User_Check.password===req.body.password){
@@ -60,6 +58,43 @@ app.post('/api/login', async (req , res) =>{
     }
   }else{
     res.send({data: "Given email doesn't have an account!"})
+  }
+})
+
+//Save data to DB
+app.post('/api/save_data', async(req, res) =>{
+  try{
+    const Find_user =  await CreateUser.findOne({user: req.body.user});
+    if(!Find_user) res.send('User Not Found!');
+    Find_user.Saved_data.push({url:req.body.urllink, data: req.body.data_text.data})
+    await Find_user.save();
+    res.send("Data received")
+  }catch(err){
+    console.log(err);
+    res.send("Something went wrong!")
+  }
+})
+
+//get data from DB
+app.post('/api/get_data_saved', async(req, res) =>{
+  try{
+    const data =  await CreateUser.findOne({user: req.body.user})
+    if(!data) res.send('User Not Found!');
+    res.send({data: data.Saved_data, status: "ok"})
+  }catch(err){
+    console.log(err);
+    res.send({status: "Something went wrong!"})
+  }
+})
+
+//delete saved element
+
+app.post('/api/delete/saved', async(req, res) =>{
+  try{
+    await CreateUser.updateOne({user: req.body.user}, {$pull: {Saved_data: {_id: new ObjectId(req.body.id)}}});
+  }catch(err){
+    console.log(err);
+    res.send({status: "Something went wrong!"})
   }
 })
 
@@ -82,11 +117,10 @@ app.post('/summary', (req, res) => {
   async function GetData(){
     try {
       const response = await axios.request(options);
-      console.log(response.data);
       res.send(response.data.summary);
         } catch (error) {
             console.log(error);
-            res.send(error.response.data.message)
+            res.send(error.response)
         }
     }
     GetData();
